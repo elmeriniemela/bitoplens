@@ -46,7 +46,6 @@ pip install git+https://github.com/elmeriniemela/bitoplens.git
 ```sh
 git submodule update --init --recursive   # if cloning fresh
 pip install -e '.[test]'
-pytest -q
 ```
 
 ## Testing
@@ -65,7 +64,3 @@ The interpreter is validated against upstream consensus vectors, vendored under
 pytest -q
 ```
 
-## License
-
-MIT. Bundles opcode tables and script-error definitions adapted from
-`pybitcoinkernel` (MIT) and vendors `secp256k1lab`.
