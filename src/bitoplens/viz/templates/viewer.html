@@ -1,0 +1,404 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>bitoplens — script trace</title>
+<style>
+  :root{
+    --bg:#f6f7f9; --panel:#ffffff; --ink:#1c2128; --muted:#6a737d; --line:#e1e4e8;
+    --accent:#2f6feb; --ok:#1a7f37; --bad:#cf222e; --warn:#9a6700;
+    --push:#1a7f37; --pop:#cf222e; --chip:#eef1f4; --code:#f2f4f7; --skip:#a0a6ad;
+    --shadow:0 1px 3px rgba(27,31,36,.08);
+  }
+  @media (prefers-color-scheme: dark){
+    :root{
+      --bg:#0d1117; --panel:#161b22; --ink:#e6edf3; --muted:#8b949e; --line:#30363d;
+      --accent:#4f8bff; --ok:#3fb950; --bad:#f85149; --warn:#d29922;
+      --push:#3fb950; --pop:#f85149; --chip:#21262d; --code:#0b0f14; --skip:#6e7681;
+      --shadow:0 1px 3px rgba(1,4,9,.4);
+    }
+  }
+  :root[data-theme="light"]{
+    --bg:#f6f7f9; --panel:#fff; --ink:#1c2128; --muted:#6a737d; --line:#e1e4e8;
+    --accent:#2f6feb; --ok:#1a7f37; --bad:#cf222e; --warn:#9a6700;
+    --push:#1a7f37; --pop:#cf222e; --chip:#eef1f4; --code:#f2f4f7; --skip:#a0a6ad;
+    --shadow:0 1px 3px rgba(27,31,36,.08);
+  }
+  :root[data-theme="dark"]{
+    --bg:#0d1117; --panel:#161b22; --ink:#e6edf3; --muted:#8b949e; --line:#30363d;
+    --accent:#4f8bff; --ok:#3fb950; --bad:#f85149; --warn:#d29922;
+    --push:#3fb950; --pop:#f85149; --chip:#21262d; --code:#0b0f14; --skip:#6e7681;
+    --shadow:0 1px 3px rgba(1,4,9,.4);
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--ink);
+    font:14px/1.5 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;}
+  code,.mono{font-family:ui-monospace,SFMono-Regular,"SF Mono",Menlo,Consolas,monospace;}
+  header{padding:14px 20px;border-bottom:1px solid var(--line);display:flex;
+    align-items:center;gap:14px;flex-wrap:wrap;background:var(--panel);}
+  header h1{font-size:16px;margin:0;font-weight:650;letter-spacing:.2px;}
+  header h1 .dot{color:var(--accent);}
+  .badge{padding:3px 10px;border-radius:999px;font-weight:650;font-size:12px;}
+  .badge.ok{background:color-mix(in srgb,var(--ok) 16%,transparent);color:var(--ok);}
+  .badge.bad{background:color-mix(in srgb,var(--bad) 16%,transparent);color:var(--bad);}
+  .spacer{flex:1}
+  .meta{color:var(--muted);font-size:12px;}
+  button{font:inherit;color:var(--ink);background:var(--panel);border:1px solid var(--line);
+    border-radius:8px;padding:6px 10px;cursor:pointer;box-shadow:var(--shadow);}
+  button:hover{border-color:var(--accent);}
+  button:disabled{opacity:.4;cursor:default;}
+  .toolbar{display:flex;align-items:center;gap:8px;padding:10px 20px;border-bottom:1px solid var(--line);
+    flex-wrap:wrap;background:var(--panel);position:sticky;top:0;z-index:5;}
+  .toolbar input[type=range]{flex:1;min-width:150px;accent-color:var(--accent);}
+  .counter{font-variant-numeric:tabular-nums;color:var(--muted);min-width:120px;}
+  main{display:grid;grid-template-columns:minmax(260px,1fr) minmax(280px,1.1fr) minmax(280px,1.2fr);
+    gap:16px;padding:16px 20px;align-items:start;}
+  @media (max-width:1000px){ main{grid-template-columns:1fr;} }
+  .panel{background:var(--panel);border:1px solid var(--line);border-radius:12px;overflow:hidden;
+    box-shadow:var(--shadow);}
+  .panel h2{font-size:12px;text-transform:uppercase;letter-spacing:.6px;color:var(--muted);
+    margin:0;padding:11px 14px;border-bottom:1px solid var(--line);font-weight:650;}
+  .panel .body{padding:12px 14px;}
+  .runs{display:flex;flex-direction:column;gap:6px;padding:10px 12px;border-bottom:1px solid var(--line);}
+  .run-chip{display:flex;gap:8px;align-items:center;font-size:12px;color:var(--muted);
+    padding:5px 8px;border-radius:8px;cursor:pointer;}
+  .run-chip.active{background:var(--chip);color:var(--ink);}
+  .run-chip .role{font-weight:600;color:var(--ink);}
+  .run-chip .tag{font-size:11px;padding:1px 6px;border-radius:6px;background:var(--chip);}
+  ol.ops{list-style:none;margin:0;padding:6px 0;max-height:60vh;overflow:auto;}
+  ol.ops li{display:flex;gap:10px;padding:4px 14px;align-items:baseline;}
+  ol.ops li .idx{color:var(--muted);font-size:11px;min-width:34px;text-align:right;}
+  ol.ops li .name{font-weight:600;}
+  ol.ops li.skip .name,ol.ops li.skip .idx{color:var(--skip);}
+  ol.ops li.cur{background:color-mix(in srgb,var(--accent) 14%,transparent);
+    border-left:3px solid var(--accent);padding-left:11px;}
+  ol.ops li.err{background:color-mix(in srgb,var(--bad) 16%,transparent);}
+  ol.ops li .data{color:var(--muted);font-size:12px;word-break:break-all;}
+  .stackwrap{display:flex;gap:14px;}
+  .stackcol{flex:1;}
+  .stackcol h3{font-size:11px;text-transform:uppercase;letter-spacing:.5px;color:var(--muted);margin:0 0 8px;}
+  .stack{display:flex;flex-direction:column-reverse;gap:6px;min-height:60px;}
+  .item{border:1px solid var(--line);border-radius:8px;padding:7px 9px;background:var(--code);}
+  .item.pushed{border-color:var(--push);box-shadow:0 0 0 2px color-mix(in srgb,var(--push) 30%,transparent);}
+  .item .hex{word-break:break-all;font-size:12.5px;}
+  .item .tags{margin-top:3px;display:flex;gap:6px;flex-wrap:wrap;}
+  .item .tag{font-size:10.5px;color:var(--muted);background:var(--chip);border-radius:5px;padding:0 5px;}
+  .stack .empty{color:var(--muted);font-style:italic;padding:6px 2px;}
+  .opinfo{padding:10px 14px;border-top:1px solid var(--line);}
+  .opinfo .op{font-weight:650;}
+  .opinfo .desc{color:var(--muted);margin-top:2px;}
+  .opinfo .note{margin-top:6px;font-size:12px;}
+  .opinfo .note.push{color:var(--push);}
+  .opinfo .note.pop{color:var(--pop);}
+  .popbadge{color:var(--pop);font-weight:600;}
+  .kv{display:grid;grid-template-columns:auto 1fr;gap:4px 12px;font-size:12.5px;}
+  .kv .k{color:var(--muted);}
+  .kv .v{word-break:break-all;}
+  .io{border:1px solid var(--line);border-radius:8px;padding:8px 10px;margin-bottom:8px;}
+  .io.target{border-color:var(--accent);box-shadow:0 0 0 2px color-mix(in srgb,var(--accent) 22%,transparent);}
+  .io .top{display:flex;justify-content:space-between;gap:8px;font-size:12px;}
+  .io .val{font-weight:650;}
+  .io .asm{margin-top:5px;font-size:12px;color:var(--muted);word-break:break-all;}
+  .io .tag{font-size:10.5px;background:var(--chip);border-radius:5px;padding:1px 6px;color:var(--muted);}
+  .sig{padding:12px 14px;border-top:1px solid var(--line);}
+  .sig .verdict{font-weight:650;}
+  .sig .verdict.ok{color:var(--ok);}
+  .sig .verdict.bad{color:var(--bad);}
+  .exec-depth{font-size:11px;color:var(--muted);margin-left:auto;}
+  .empty-note{color:var(--muted);padding:16px;text-align:center;}
+</style>
+</head>
+<body>
+<header>
+  <h1><span class="dot">◆</span> bitoplens</h1>
+  <span id="verdict" class="badge">—</span>
+  <span id="errname" class="meta"></span>
+  <span class="spacer"></span>
+  <span id="flags" class="meta"></span>
+  <button id="theme" title="Toggle light/dark">◐</button>
+</header>
+
+<div class="toolbar" id="toolbar">
+  <button id="first" title="First (Home)">⏮</button>
+  <button id="prev" title="Previous (←)">◀</button>
+  <button id="play" title="Play/Pause (Space)">▶</button>
+  <button id="next" title="Next (→)">▶▶</button>
+  <button id="last" title="Last (End)">⏭</button>
+  <input type="range" id="slider" min="0" max="0" value="0">
+  <span class="counter" id="counter">—</span>
+</div>
+
+<main id="main"></main>
+
+<script id="trace" type="application/json">__BITOPLENS_TRACE__</script>
+<script>
+(function(){
+  "use strict";
+  const TRACE = JSON.parse(document.getElementById("trace").textContent);
+
+  // ---- Theme toggle -----------------------------------------------------
+  const root = document.documentElement;
+  document.getElementById("theme").addEventListener("click", () => {
+    const cur = root.getAttribute("data-theme");
+    const next = cur === "dark" ? "light"
+      : cur === "light" ? "dark"
+      : (matchMedia("(prefers-color-scheme: dark)").matches ? "light" : "dark");
+    root.setAttribute("data-theme", next);
+  });
+
+  // ---- Header -----------------------------------------------------------
+  const verdict = document.getElementById("verdict");
+  if (TRACE.runs && TRACE.runs.length){
+    verdict.textContent = TRACE.valid ? "VALID" : "INVALID";
+    verdict.className = "badge " + (TRACE.valid ? "ok" : "bad");
+    document.getElementById("errname").textContent = TRACE.error_name
+      ? "" : ("error " + TRACE.error);
+  } else {
+    verdict.textContent = "TRANSACTION";
+    verdict.className = "badge";
+  }
+  document.getElementById("flags").textContent = TRACE.flags ? ("flags 0x" + TRACE.flags.toString(16)) : "";
+
+  // ---- Helpers ----------------------------------------------------------
+  const OP_ERR = {}; // populated lazily; error names embedded per step
+  function scriptNum(hex){
+    if(!hex) return 0n * 1n === 0n ? "0" : null;
+    let b = []; for(let i=0;i<hex.length;i+=2) b.push(parseInt(hex.substr(i,2),16));
+    if(b.length===0) return "0";
+    let neg = (b[b.length-1] & 0x80) !== 0;
+    let v = 0n;
+    for(let i=0;i<b.length;i++){
+      let bb = BigInt(i===b.length-1 ? (b[i] & 0x7f) : b[i]);
+      v += bb << BigInt(8*i);
+    }
+    return (neg ? -v : v).toString();
+  }
+  function itemNode(hex, pushed){
+    const d = document.createElement("div");
+    d.className = "item" + (pushed ? " pushed" : "");
+    const h = document.createElement("div"); h.className = "hex mono";
+    const nbytes = hex.length/2;
+    if(nbytes===0){ h.textContent = "∅  (empty / false)"; }
+    else if(nbytes>24){ h.textContent = hex.slice(0,48) + "… "; }
+    else { h.textContent = hex; }
+    d.appendChild(h);
+    const tags = document.createElement("div"); tags.className = "tags";
+    const t1 = document.createElement("span"); t1.className="tag"; t1.textContent = nbytes+" B"; tags.appendChild(t1);
+    if(nbytes>0 && nbytes<=5){
+      const n = scriptNum(hex);
+      if(n!==null){ const t2=document.createElement("span"); t2.className="tag"; t2.textContent="= "+n; tags.appendChild(t2); }
+    }
+    d.appendChild(tags);
+    return d;
+  }
+
+  // ---- Flatten steps across runs ---------------------------------------
+  const runs = TRACE.runs || [];
+  const steps = [];
+  runs.forEach(run => (run.steps||[]).forEach(st => steps.push(Object.assign({_run:run}, st))));
+  steps.sort((a,b)=>a.step-b.step);
+
+  const mainEl = document.getElementById("main");
+
+  function renderTxPanel(){
+    if(!TRACE.transaction) return null;
+    const tx = TRACE.transaction;
+    const p = document.createElement("section"); p.className="panel";
+    p.innerHTML = '<h2>Transaction</h2>';
+    const body = document.createElement("div"); body.className="body";
+    const kv = document.createElement("div"); kv.className="kv";
+    kv.innerHTML =
+      '<span class="k">txid</span><span class="v mono">'+tx.txid+'</span>'+
+      '<span class="k">version</span><span class="v">'+tx.version+'</span>'+
+      '<span class="k">locktime</span><span class="v">'+tx.locktime+'</span>';
+    body.appendChild(kv);
+    const inH = document.createElement("h3"); inH.style.margin="12px 0 6px"; inH.style.fontSize="11px";
+    inH.style.textTransform="uppercase"; inH.style.color="var(--muted)"; inH.textContent="Inputs";
+    body.appendChild(inH);
+    tx.vin.forEach(v=>{
+      const el=document.createElement("div"); el.className="io"+(v.is_target?" target":"");
+      el.innerHTML='<div class="top"><span class="mono">#'+v.index+'  '+v.txid.slice(0,16)+'…:'+v.vout+'</span>'+
+        '<span class="tag">seq '+(v.sequence>>>0)+'</span></div>'+
+        (v.script_sig_asm?'<div class="asm mono">'+v.script_sig_asm+'</div>':'')+
+        (v.witness&&v.witness.length?'<div class="asm mono">witness: '+v.witness.length+' item(s)</div>':'');
+      body.appendChild(el);
+    });
+    const outH = inH.cloneNode(); outH.textContent="Outputs"; body.appendChild(outH);
+    tx.vout.forEach(v=>{
+      const el=document.createElement("div"); el.className="io";
+      el.innerHTML='<div class="top"><span class="val">'+(v.value/1e8).toFixed(8)+' BTC</span>'+
+        (v.type?'<span class="tag">'+v.type+'</span>':'')+'</div>'+
+        (v.address?'<div class="asm mono">'+v.address+'</div>':'')+
+        '<div class="asm mono">'+v.script_pubkey_asm+'</div>';
+      body.appendChild(el);
+    });
+    p.appendChild(body);
+    return p;
+  }
+
+  if(!steps.length){
+    // Transaction-only view.
+    const tx = renderTxPanel();
+    document.getElementById("toolbar").style.display="none";
+    if(tx){ tx.style.maxWidth="720px"; tx.style.margin="0 auto"; mainEl.style.display="block"; mainEl.appendChild(tx); }
+    else { mainEl.innerHTML='<div class="empty-note">Nothing to display.</div>'; }
+    return;
+  }
+
+  // ---- Build the three panels once, then update on step change ----------
+  const leftPanel = document.createElement("section"); leftPanel.className="panel";
+  leftPanel.innerHTML='<h2>Scripts</h2>';
+  const runsBox = document.createElement("div"); runsBox.className="runs"; leftPanel.appendChild(runsBox);
+  const opsList = document.createElement("ol"); opsList.className="ops"; leftPanel.appendChild(opsList);
+
+  const midPanel = document.createElement("section"); midPanel.className="panel";
+  midPanel.innerHTML='<h2>Machine state</h2>';
+  const stackBody = document.createElement("div"); stackBody.className="body"; midPanel.appendChild(stackBody);
+  const opInfo = document.createElement("div"); opInfo.className="opinfo"; midPanel.appendChild(opInfo);
+
+  const rightPanel = document.createElement("div");
+  const txPanel = renderTxPanel();
+  if(txPanel) rightPanel.appendChild(txPanel);
+  const sigPanelHost = document.createElement("div"); rightPanel.appendChild(sigPanelHost);
+
+  mainEl.appendChild(leftPanel); mainEl.appendChild(midPanel); mainEl.appendChild(rightPanel);
+
+  const roleLabel = {scriptSig:"scriptSig",scriptPubKey:"scriptPubKey",redeemScript:"redeem",
+    witnessScript:"witness",tapscript:"tapscript"};
+
+  let idx = 0;
+  let curRunIdx = -1;
+
+  function renderRunOps(run){
+    opsList.innerHTML="";
+    (run.steps||[]).forEach((st,i)=>{
+      const li=document.createElement("li");
+      li.dataset.step = st.step;
+      li.className = (st.executed?"":"skip");
+      const idxSpan=document.createElement("span"); idxSpan.className="idx"; idxSpan.textContent="#"+st.op_index;
+      const name=document.createElement("span"); name.className="name mono"; name.textContent=st.opcode_name;
+      li.appendChild(idxSpan); li.appendChild(name);
+      if(st.pushdata){ const d=document.createElement("span"); d.className="data mono";
+        d.textContent = st.pushdata.length>40 ? st.pushdata.slice(0,40)+"…" : st.pushdata; li.appendChild(d); }
+      opsList.appendChild(li);
+    });
+  }
+
+  function renderRunsBox(activeRun){
+    runsBox.innerHTML="";
+    runs.forEach(run=>{
+      const c=document.createElement("div");
+      c.className="run-chip"+(run===activeRun?" active":"");
+      const r=document.createElement("span"); r.className="role"; r.textContent=roleLabel[run.role]||run.role;
+      c.appendChild(r);
+      if(run.script_type){ const t=document.createElement("span"); t.className="tag"; t.textContent=run.script_type; c.appendChild(t); }
+      c.addEventListener("click",()=>{ const s=(run.steps&&run.steps[0]); if(s){ goto(steps.findIndex(x=>x.step===s.step)); } });
+      runsBox.appendChild(c);
+    });
+  }
+
+  function renderSig(st){
+    sigPanelHost.innerHTML="";
+    if(!st.sig_check) return;
+    const sc=st.sig_check;
+    const p=document.createElement("section"); p.className="panel"; p.style.marginTop="16px";
+    p.innerHTML='<h2>Signature check</h2>';
+    const body=document.createElement("div"); body.className="sig";
+    const v=document.createElement("div"); v.className="verdict "+(sc.valid?"ok":"bad");
+    v.textContent = sc.valid?"✓ signature valid":"✗ signature invalid"; body.appendChild(v);
+    const kv=document.createElement("div"); kv.className="kv"; kv.style.marginTop="8px";
+    const rows=[["pubkey",sc.pubkey],["signature",sc.sig],["sighash",sc.sighash]];
+    rows.forEach(([k,val])=>{ if(val){ const kk=document.createElement("span");kk.className="k";kk.textContent=k;
+      const vv=document.createElement("span");vv.className="v mono";vv.textContent=val; kv.appendChild(kk);kv.appendChild(vv);} });
+    body.appendChild(kv); p.appendChild(body); sigPanelHost.appendChild(p);
+  }
+
+  function render(){
+    const st = steps[idx];
+    const run = st._run;
+    if(run.index!==curRunIdx){ curRunIdx=run.index; renderRunOps(run); renderRunsBox(run); }
+
+    // highlight current op line
+    opsList.querySelectorAll("li").forEach(li=>{
+      li.classList.remove("cur","err");
+      if(Number(li.dataset.step)===st.step){
+        li.classList.add("cur"); if(st.error!==null&&st.error!==undefined) li.classList.add("err");
+        li.scrollIntoView({block:"nearest"});
+      }
+    });
+
+    // stacks
+    stackBody.innerHTML="";
+    const wrap=document.createElement("div"); wrap.className="stackwrap";
+    const pushedN = st.delta ? (st.delta.pushed||[]).length : 0;
+    function col(title, arr, markPushed){
+      const c=document.createElement("div"); c.className="stackcol";
+      const h=document.createElement("h3"); h.textContent=title; c.appendChild(h);
+      const s=document.createElement("div"); s.className="stack";
+      if(!arr.length){ const e=document.createElement("div"); e.className="empty"; e.textContent="(empty)"; s.appendChild(e); }
+      arr.forEach((hex,i)=>{ const isTop = i>=arr.length-pushedN; s.appendChild(itemNode(hex, markPushed&&isTop)); });
+      c.appendChild(s); return c;
+    }
+    wrap.appendChild(col("Stack (top ▲)", st.stack||[], true));
+    if((st.altstack||[]).length) wrap.appendChild(col("Alt stack", st.altstack||[], false));
+    stackBody.appendChild(wrap);
+
+    // op info
+    opInfo.innerHTML="";
+    const op=document.createElement("div"); op.className="op mono"; op.textContent=st.opcode_name + (st.executed?"":"  (skipped)");
+    opInfo.appendChild(op);
+    if(st.description){ const d=document.createElement("div"); d.className="desc"; d.textContent=st.description; opInfo.appendChild(d); }
+    if(st.delta && st.executed){
+      const parts=[];
+      if(st.delta.popped) parts.push('<span class="popbadge">−'+st.delta.popped+' popped</span>');
+      if(pushedN) parts.push('<span class="note push">+'+pushedN+' pushed</span>');
+      if(parts.length){ const n=document.createElement("div"); n.className="note"; n.innerHTML=parts.join("  ·  "); opInfo.appendChild(n); }
+    }
+    if(st.note){ const n=document.createElement("div"); n.className="note"; n.textContent=st.note; opInfo.appendChild(n); }
+    if(st.error!==null&&st.error!==undefined){ const n=document.createElement("div"); n.className="note pop";
+      n.textContent="✗ aborted here (error "+st.error+")"; opInfo.appendChild(n); }
+    if((st.exec_stack||[]).length){ const n=document.createElement("div"); n.className="note";
+      n.textContent="IF-depth: "+st.exec_stack.length+"  ["+st.exec_stack.map(b=>b?"T":"F").join(",")+"]"; opInfo.appendChild(n); }
+
+    renderSig(st);
+
+    // toolbar state
+    slider.value = idx;
+    counter.textContent = "step "+(idx+1)+" / "+steps.length+"  ·  "+roleLabel[run.role]||run.role;
+    document.getElementById("first").disabled = idx===0;
+    document.getElementById("prev").disabled = idx===0;
+    document.getElementById("next").disabled = idx===steps.length-1;
+    document.getElementById("last").disabled = idx===steps.length-1;
+  }
+
+  function goto(i){ idx=Math.max(0,Math.min(steps.length-1,i)); render(); }
+
+  const slider=document.getElementById("slider"); slider.max=steps.length-1;
+  const counter=document.getElementById("counter");
+  slider.addEventListener("input",()=>goto(Number(slider.value)));
+  document.getElementById("first").onclick=()=>goto(0);
+  document.getElementById("prev").onclick=()=>goto(idx-1);
+  document.getElementById("next").onclick=()=>goto(idx+1);
+  document.getElementById("last").onclick=()=>goto(steps.length-1);
+
+  let timer=null;
+  const playBtn=document.getElementById("play");
+  playBtn.onclick=()=>{
+    if(timer){ clearInterval(timer); timer=null; playBtn.textContent="▶"; return; }
+    playBtn.textContent="⏸";
+    timer=setInterval(()=>{ if(idx>=steps.length-1){ clearInterval(timer); timer=null; playBtn.textContent="▶"; } else goto(idx+1); },600);
+  };
+  document.addEventListener("keydown",e=>{
+    if(e.key==="ArrowRight"){ goto(idx+1); e.preventDefault(); }
+    else if(e.key==="ArrowLeft"){ goto(idx-1); e.preventDefault(); }
+    else if(e.key==="Home"){ goto(0); e.preventDefault(); }
+    else if(e.key==="End"){ goto(steps.length-1); e.preventDefault(); }
+    else if(e.key===" "){ playBtn.click(); e.preventDefault(); }
+  });
+
+  render();
+})();
+</script>
+</body>
+</html>

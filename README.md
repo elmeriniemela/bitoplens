@@ -1,0 +1,62 @@
+# bitoplens
+
+A pure-Python **Bitcoin Script simulator and visualizer**. `bitoplens` executes
+Bitcoin scripts step-by-step on a virtual machine, records the full machine
+state at every opcode, and renders an interactive, self-contained HTML page that
+lets you step through the execution and inspect the stack, the transaction, and
+(for Taproot) the script tree.
+
+- **Pure Python, no native build.** Zero pip runtime dependencies. secp256k1
+  crypto is provided by [`secp256k1lab`](https://github.com/secp256k1lab/secp256k1lab),
+  vendored as a git submodule (also pure Python).
+- **Full script coverage:** legacy (P2PK / P2PKH / P2SH / multisig), SegWit v0
+  (P2WPKH / P2WSH, BIP143), and Taproot (P2TR key-path & script-path, Schnorr
+  BIP340, tapscript BIP342, BIP341 sighash).
+- **Introspectable interpreter:** the VM is a stepper; every step captures the
+  main stack, alt stack, conditional (`OP_IF`) state, and signature-check
+  details — the same data feeds both the Python API and the HTML viewer.
+
+## Quick start
+
+```python
+import bitoplens as bl
+from bitoplens.script import opcodes as OP
+from bitoplens.script.script import ScriptBuilder
+from bitoplens.primitives.hashing import sha256
+
+# A hash-preimage lock, no transaction needed.
+spk = ScriptBuilder().op(OP.OP_SHA256).push(sha256(b"open sesame")).op(OP.OP_EQUAL).build()
+sig = ScriptBuilder().push(b"open sesame").build()
+
+trace = bl.run_script(spk, sig)
+print(trace.valid)                 # True
+bl.visualize(trace, "trace.html")  # self-contained interactive HTML
+```
+
+For full transaction verification (legacy, SegWit v0, Taproot) use
+`bl.run(script_pubkey, tx=..., input_index=..., spent_outputs=..., flags=...)`.
+See `examples/demo.py`.
+
+## Install (development)
+
+`secp256k1lab` is vendored under `vendor/secp256k1lab` as a git submodule. This
+checkout ships its source directly so it builds and tests out of the box; to
+track it as a proper submodule instead:
+
+```sh
+rm -rf vendor/secp256k1lab
+git submodule add https://github.com/secp256k1lab/secp256k1lab vendor/secp256k1lab
+```
+
+Then:
+
+```sh
+git submodule update --init --recursive   # if cloning fresh
+pip install -e '.[test]'
+pytest -q
+```
+
+## License
+
+MIT. Bundles opcode tables and script-error definitions adapted from
+`pybitcoinkernel` (MIT) and vendors `secp256k1lab`.
