@@ -56,6 +56,22 @@ pip install -e '.[test]'
 pytest -q
 ```
 
+## Testing
+
+The interpreter is validated against upstream consensus vectors, vendored under
+`tests/data/`:
+
+- **Bitcoin Core `script_tests.json`** — all ~1230 runnable cases pass with an
+  exact `ScriptError` match (dynamically-synthesized Taproot rows are skipped).
+- **BIP341 wallet vectors** — Taproot output-key derivation, sighash midstates,
+  key-path sighashes, and full verification against real Schnorr signatures.
+- The real **block-170** transaction (historic P2PK) plus constructed spends
+  for every script type.
+
+```sh
+pytest -q
+```
+
 ## License
 
 MIT. Bundles opcode tables and script-error definitions adapted from

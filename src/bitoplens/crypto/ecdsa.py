@@ -8,7 +8,7 @@ simulator never signs with ECDSA.
 
 from __future__ import annotations
 
-from secp256k1lab.secp256k1 import G, GE, Scalar
+from secp256k1lab.secp256k1 import FE, G, GE, Scalar
 
 __all__ = [
     "verify_ecdsa",
@@ -76,15 +76,14 @@ def is_valid_der_encoding(sig: bytes) -> bool:
         return False
     if lenR > 1 and sig[4] == 0x00 and not (sig[5] & 0x80):
         return False
-    if sig[6 + lenR] != 0x02:
+    # The S value's type byte is at offset lenR+4, its content starts at lenR+6.
+    if sig[lenR + 4] != 0x02:
         return False
     if lenS == 0:
         return False
-    if sig[6 + lenR] != 0x02:
+    if sig[lenR + 6] & 0x80:
         return False
-    if sig[6 + lenR + 1] & 0x80:
-        return False
-    if lenS > 1 and sig[6 + lenR + 1] == 0x00 and not (sig[6 + lenR + 2] & 0x80):
+    if lenS > 1 and sig[lenR + 6] == 0x00 and not (sig[lenR + 7] & 0x80):
         return False
     return True
 
@@ -96,6 +95,29 @@ def is_low_s(sig: bytes) -> bool:
         return False
     _r, s = parsed
     return s <= SECP256K1_HALF_ORDER
+
+
+def parse_pubkey(pubkey: bytes):
+    """Parse a public key to a point, or ``None``.
+
+    Accepts compressed (0x02/0x03), uncompressed (0x04), and legacy *hybrid*
+    (0x06/0x07) encodings -- the last of which older nodes accept when
+    STRICTENC is off.
+    """
+    try:
+        if len(pubkey) == 33 and pubkey[0] in (0x02, 0x03):
+            return GE.from_bytes_compressed(bytes(pubkey))
+        if len(pubkey) == 65 and pubkey[0] == 0x04:
+            return GE.from_bytes_uncompressed(bytes(pubkey))
+        if len(pubkey) == 65 and pubkey[0] in (0x06, 0x07):
+            x = FE.from_bytes_checked(bytes(pubkey[1:33]))
+            y = FE.from_bytes_checked(bytes(pubkey[33:65]))
+            if y**2 != x**3 + 7:
+                return None
+            return GE(x, y)
+    except (ValueError, AssertionError):
+        return None
+    return None
 
 
 def verify_ecdsa(sig_der: bytes, pubkey: bytes, msg32: bytes) -> bool:
@@ -110,9 +132,8 @@ def verify_ecdsa(sig_der: bytes, pubkey: bytes, msg32: bytes) -> bool:
     n = SECP256K1_ORDER
     if not (1 <= r < n and 1 <= s < n):
         return False
-    try:
-        P = GE.from_bytes(pubkey)
-    except (ValueError, AssertionError):
+    P = parse_pubkey(pubkey)
+    if P is None:
         return False
     z = int.from_bytes(msg32, "big") % n
     try:

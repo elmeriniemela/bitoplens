@@ -87,6 +87,14 @@ def _is_p2sh(spk: bytes) -> bool:
     )
 
 
+def _num_or_error(data: bytes, require_minimal: bool, max_size: int = 4) -> int:
+    """Decode a script number, mapping overflow / non-minimal to SCRIPTNUM."""
+    try:
+        return decode_num(data, require_minimal=require_minimal, max_size=max_size)
+    except ValueError:
+        raise ScriptException(ScriptError.SCRIPTNUM)
+
+
 def _witness_program(spk: bytes) -> tuple[int, bytes] | None:
     """If ``spk`` is a witness program, return ``(version, program_bytes)``.
 
@@ -536,7 +544,7 @@ class Interpreter:
                 raise ScriptException(ScriptError.INVALID_STACK_OPERATION)
 
         def num(data, max_size=4):
-            return decode_num(data, require_minimal=frame.require_minimal, max_size=max_size)
+            return _num_or_error(data, frame.require_minimal, max_size)
 
         # -- Push-value opcodes handled in the switch (OP_1NEGATE / OP_1..OP_16)
         if op == OP.OP_1NEGATE:
@@ -562,7 +570,9 @@ class Interpreter:
                 if frame.sig_version == SigVersion.TAPSCRIPT:
                     if len(top) > 1 or (len(top) == 1 and top[0] != 1):
                         raise ScriptException(ScriptError.TAPSCRIPT_MINIMALIF)
-                elif self.flags & VF.MINIMALIF:
+                elif frame.sig_version == SigVersion.WITNESS_V0 and (self.flags & VF.MINIMALIF):
+                    # MINIMALIF is a witness-v0 policy only; it does not apply to
+                    # base (pre-segwit) script execution.
                     if len(top) > 1 or (len(top) == 1 and top[0] != 1):
                         raise ScriptException(ScriptError.MINIMALIF)
                 value = cast_to_bool(top)
@@ -799,11 +809,11 @@ class Interpreter:
         if op == OP.OP_CHECKLOCKTIMEVERIFY:
             if not (self.flags & VF.CHECKLOCKTIMEVERIFY):
                 return self._nop(op)
-            return self._op_cltv(stack)
+            return self._op_cltv(stack, frame)
         if op == OP.OP_CHECKSEQUENCEVERIFY:
             if not (self.flags & VF.CHECKSEQUENCEVERIFY):
                 return self._nop(op)
-            return self._op_csv(stack)
+            return self._op_csv(stack, frame)
 
         if op in (OP.OP_NOP1, OP.OP_NOP4, OP.OP_NOP5, OP.OP_NOP6, OP.OP_NOP7, OP.OP_NOP8, OP.OP_NOP9, OP.OP_NOP10):
             return self._nop(op)
@@ -844,7 +854,7 @@ class Interpreter:
             if frame.execdata.validation_weight < 0:
                 raise ScriptException(ScriptError.TAPSCRIPT_VALIDATION_WEIGHT)
         if len(pubkey) == 0:
-            raise ScriptException(ScriptError.PUBKEYTYPE)
+            raise ScriptException(ScriptError.TAPSCRIPT_EMPTY_PUBKEY)
         if len(pubkey) == 32:
             if len(sig) == 0:
                 return False
@@ -917,7 +927,7 @@ class Interpreter:
         i = 1
         if len(stack) < i:
             raise ScriptException(ScriptError.INVALID_STACK_OPERATION)
-        keys_count = decode_num(stack[-i], require_minimal=frame.require_minimal)
+        keys_count = _num_or_error(stack[-i], frame.require_minimal)
         if keys_count < 0 or keys_count > MAX_PUBKEYS_PER_MULTISIG:
             raise ScriptException(ScriptError.PUBKEY_COUNT)
         frame.op_count += keys_count
@@ -929,7 +939,7 @@ class Interpreter:
         i += keys_count
         if len(stack) < i:
             raise ScriptException(ScriptError.INVALID_STACK_OPERATION)
-        sigs_count = decode_num(stack[-i], require_minimal=frame.require_minimal)
+        sigs_count = _num_or_error(stack[-i], frame.require_minimal)
         if sigs_count < 0 or sigs_count > keys_count:
             raise ScriptException(ScriptError.SIG_COUNT)
         i += 1
@@ -998,7 +1008,7 @@ class Interpreter:
         if len(stack) < 3:
             raise ScriptException(ScriptError.INVALID_STACK_OPERATION)
         pubkey = stack[-1]
-        n = decode_num(stack[-2], require_minimal=frame.require_minimal)
+        n = _num_or_error(stack[-2], frame.require_minimal)
         sig = stack[-3]
         success = self._checksig_schnorr(sig, pubkey, frame)
         stack.pop()  # pubkey
@@ -1007,22 +1017,22 @@ class Interpreter:
         stack.append(encode_num(n + (1 if success else 0)))
         return _StepResult(note=("counter +1" if success else "counter unchanged"))
 
-    def _op_cltv(self, stack) -> _StepResult:
+    def _op_cltv(self, stack, frame) -> _StepResult:
         checker = self._require_checker()
         if len(stack) < 1:
             raise ScriptException(ScriptError.INVALID_STACK_OPERATION)
-        locktime = decode_num(stack[-1], require_minimal=False, max_size=5)
+        locktime = _num_or_error(stack[-1], frame.require_minimal, max_size=5)
         if locktime < 0:
             raise ScriptException(ScriptError.NEGATIVE_LOCKTIME)
         if not checker.check_locktime(locktime):
             raise ScriptException(ScriptError.UNSATISFIED_LOCKTIME)
         return _StepResult(note="locktime satisfied")
 
-    def _op_csv(self, stack) -> _StepResult:
+    def _op_csv(self, stack, frame) -> _StepResult:
         checker = self._require_checker()
         if len(stack) < 1:
             raise ScriptException(ScriptError.INVALID_STACK_OPERATION)
-        sequence = decode_num(stack[-1], require_minimal=False, max_size=5)
+        sequence = _num_or_error(stack[-1], frame.require_minimal, max_size=5)
         if sequence < 0:
             raise ScriptException(ScriptError.NEGATIVE_LOCKTIME)
         if sequence & SEQUENCE_LOCKTIME_DISABLE_FLAG:
