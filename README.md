@@ -37,19 +37,12 @@ For full transaction verification (legacy, SegWit v0, Taproot) use
 `bl.run(script_pubkey, tx=..., input_index=..., spent_outputs=..., flags=...)`.
 See `examples/demo.py`.
 
-## Install (development)
-
-`secp256k1lab` is vendored under `vendor/secp256k1lab` as a git submodule. This
-checkout ships its source directly so it builds and tests out of the box; to
-track it as a proper submodule instead:
-
+## Install
 ```sh
-rm -rf vendor/secp256k1lab
-git submodule add https://github.com/secp256k1lab/secp256k1lab vendor/secp256k1lab
+pip install git+https://github.com/elmeriniemela/bitoplens.git
 ```
 
-Then:
-
+## Development
 ```sh
 git submodule update --init --recursive   # if cloning fresh
 pip install -e '.[test]'
