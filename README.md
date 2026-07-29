@@ -37,6 +37,25 @@ For full transaction verification (legacy, SegWit v0, Taproot) use
 `bl.run(script_pubkey, tx=..., input_index=..., spent_outputs=..., flags=...)`.
 See `examples/demo.py`.
 
+### Visualize a real transaction
+
+`scripts/visualize_tx.py` fetches a transaction (and each input's previous
+output) from mempool.space, verifies every input, and writes an interactive
+HTML trace — standard library only, no extra dependencies:
+
+```sh
+python scripts/visualize_tx.py <txid> --open        # render input 0, open in browser
+python scripts/visualize_tx.py <txid> --input 2     # a specific input
+python scripts/visualize_tx.py <txid> --network testnet --tx-only
+```
+
+It prints a per-input verdict, e.g.:
+
+```
+tx f4184fc5…31e9e16  (mainnet)  1 in / 2 out
+  input 0: OK   OK                     P2PK
+```
+
 ## Install
 ```sh
 pip install git+https://github.com/elmeriniemela/bitoplens.git
