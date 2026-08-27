@@ -10,6 +10,7 @@ plain JSON-serializable structures (bytes -> hex) for embedding in the viewer.
 from __future__ import annotations
 
 from dataclasses import asdict, dataclass, field
+from typing import Any, cast
 
 __all__ = [
     "StackDelta",
@@ -103,7 +104,7 @@ class VerificationTrace:
 # JSON rendering
 # --------------------------------------------------------------------------- #
 
-def _convert(value):
+def _convert(value: Any) -> Any:
     if isinstance(value, (bytes, bytearray)):
         return value.hex()
     if isinstance(value, tuple):
@@ -117,4 +118,4 @@ def _convert(value):
 
 def to_jsonable(trace: VerificationTrace) -> dict:
     """Render ``trace`` into nested dict/list/str/int/bool (bytes -> hex)."""
-    return _convert(asdict(trace))
+    return cast(dict, _convert(asdict(trace)))

@@ -38,7 +38,9 @@ def test_output_key_derivation():
         merkle_root = b"" if mr is None else bytes.fromhex(mr)
         tweak = tagged_hash("TapTweak", internal + merkle_root)
         assert tweak.hex() == case["intermediary"]["tweak"]
-        out_xonly, _parity = taproot_tweak_pubkey(internal, tweak)
+        tweaked = taproot_tweak_pubkey(internal, tweak)
+        assert tweaked is not None
+        out_xonly, _parity = tweaked
         assert out_xonly.hex() == case["intermediary"]["tweakedPubkey"]
         assert case["expected"]["scriptPubKey"] == "5120" + out_xonly.hex()
 

@@ -11,13 +11,17 @@ from bitoplens.tx.address import base58check_encode, script_to_address
 def test_p2pkh_address():
     # hash160 of all-zeros -> known mainnet P2PKH address.
     spk = bytes([0x76, 0xA9, 0x14]) + bytes(20) + bytes([0x88, 0xAC])
-    assert script_to_address(spk) == base58check_encode(b"\x00" + bytes(20))
-    assert script_to_address(spk).startswith("1")
+    address = script_to_address(spk)
+    assert address is not None
+    assert address == base58check_encode(b"\x00" + bytes(20))
+    assert address.startswith("1")
 
 
 def test_p2sh_address():
     spk = bytes([0xA9, 0x14]) + bytes(20) + bytes([0x87])
-    assert script_to_address(spk).startswith("3")
+    address = script_to_address(spk)
+    assert address is not None
+    assert address.startswith("3")
 
 
 def test_p2wpkh_bech32():

@@ -1,5 +1,5 @@
 [build-system]
-requires = ["setuptools>=68"]
+requires = ["setuptools>=77"]
 build-backend = "setuptools.build_meta"
 
 [project]
@@ -8,17 +8,32 @@ version = "0.1.0"
 description = "A pure-Python Bitcoin Script simulator and interactive visualizer"
 readme = "README.md"
 requires-python = ">=3.12"
-license = { text = "MIT" }
+license = "MIT"
+license-files = ["COPYING", "vendor/secp256k1lab/COPYING"]
 keywords = ["bitcoin", "script", "taproot", "debugger", "visualization"]
 classifiers = [
     "Development Status :: 3 - Alpha",
     "Intended Audience :: Developers",
     "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Programming Language :: Python :: 3.14",
     "Topic :: Software Development :: Libraries",
 ]
 
+[project.urls]
+Homepage = "https://github.com/elmeriniemela/bitoplens"
+Issues = "https://github.com/elmeriniemela/bitoplens/issues"
+Source = "https://github.com/elmeriniemela/bitoplens"
+
 [project.optional-dependencies]
 test = ["pytest>=7"]
+dev = [
+    "build>=1.2",
+    "pyright>=1.1",
+    "pytest>=7",
+    "twine>=6",
+]
 
 [tool.setuptools]
 # `bitoplens` lives under src/; `secp256k1lab` is vendored as a git submodule

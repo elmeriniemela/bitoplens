@@ -1,6 +1,4 @@
 {
-  "venvPath": ".",
-  "venv": ".venv",
-  "extraPaths": ["src"],
+  "extraPaths": ["src", "vendor/secp256k1lab/src"],
   "reportMissingImports": "none"
 }

@@ -209,6 +209,7 @@ def test_trace_records_steps_and_deltas():
     assert names == ["OP_2", "OP_3", "OP_ADD"]
     add_step = spk_run.steps[-1]
     # OP_ADD pops two, pushes one.
+    assert add_step.delta is not None
     assert add_step.delta.popped == 2
     assert len(add_step.delta.pushed) == 1
     # Global step index is monotonic across runs.

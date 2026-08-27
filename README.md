@@ -58,14 +58,32 @@ tx f4184fc5…31e9e16  (mainnet)  1 in / 2 out
 
 ## Install
 ```sh
-pip install git+https://github.com/elmeriniemela/bitoplens.git
+pip install bitoplens
 ```
+
+To install the latest development version directly from GitHub, use
+`pip install git+https://github.com/elmeriniemela/bitoplens.git`.
 
 ## Development
 ```sh
 git submodule update --init --recursive   # if cloning fresh
-pip install -e '.[test]'
+pip install -e '.[dev]'
 ```
+
+## Releasing
+
+Releases are published to PyPI by GitHub Actions using trusted publishing. To
+publish a version:
+
+1. Update `version` in `pyproject.toml` and `__version__` in
+   `src/bitoplens/__init__.py`.
+2. Push the change and wait for the test workflow to pass.
+3. Create and push a tag matching the version, for example `v0.1.0`.
+
+The `pypi` GitHub environment must be configured as a trusted publisher for the
+`elmeriniemela/bitoplens` repository and the `publish.yml` workflow. The publish
+workflow can also be run manually to validate the release build; manual runs do
+not upload to PyPI.
 
 ## Testing
 
@@ -82,4 +100,3 @@ The interpreter is validated against upstream consensus vectors, vendored under
 ```sh
 pytest -q
 ```
-

@@ -40,7 +40,10 @@ def test_block170_p2pk_real_signature():
     assert tr.error == ScriptError.OK
     # The CHECKSIG step exposes the computed sighash.
     sig_steps = [s for r in tr.runs for s in r.steps if s.sig_check]
-    assert sig_steps and sig_steps[-1].sig_check.valid
+    assert sig_steps
+    sig_check = sig_steps[-1].sig_check
+    assert sig_check is not None
+    assert sig_check.valid
 
 
 # --------------------------------------------------------------------------- #

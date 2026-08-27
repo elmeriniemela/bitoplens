@@ -167,5 +167,5 @@ def run_case(case) -> tuple[bool, ScriptError]:
 
 
 def expected_error(case) -> ScriptError:
-    name = _ERR_ALIAS.get(case["expected"], case["expected"])
+    name = str(_ERR_ALIAS.get(case["expected"], case["expected"]))
     return ScriptError[name]
